@@ -11,7 +11,7 @@
 # $1: Message to be displayed
 _msg_info() {
     local _msg="${1}"
-    echo "[FULGUR] INFO: ${_msg}"
+    echo -e "[FULGUR] INFO: ${_msg}"
 }
 
 # Display an error message and exit with status
@@ -22,7 +22,7 @@ _msg_error() {
     local _error="${2}"
 
     echo
-    echo "[FULGUR] ERROR: ${_msg}"
+    echo -e "[FULGUR] ERROR: ${_msg}"
     echo
 
     exit ${_error}

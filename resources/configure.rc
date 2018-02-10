@@ -1,5 +1,9 @@
 # vim:filetype=sh
 
+# Author: Brian Wilson <doc@wiltech.org>
+# Project: Fulgur Linux
+#
+
 menu_backtitle="Fulgur Linux"
 
 install_disk=
@@ -13,6 +17,7 @@ mount_root=
 mount_boot=
 
 setup_partitions() {
+    clear
     local _parts=()
     if [[ "${use_uefi}" -eq 1 ]]; then
         _parts+=(
@@ -20,6 +25,7 @@ setup_partitions() {
             "mkpart esp fat32 1MiB 513MiB"
             "mkpart primary ext2 513MiB 641MiB"
             "mkpart primary ext4 641MiB"
+            "set 1 boot on"
         )
 
         boot_dev=${install_disk}1
@@ -27,15 +33,15 @@ setup_partitions() {
         mount_root=${install_disk}3
     else
         _parts+=(
-            "mklabel gpt"
-            "mkpart bios_grub 1MiB 2MiB"
-            "mkpart primary ext2 2MiB 129MiB"
+            "mklabel msdos"
+            "mkpart primary ext2 1MiB 129MiB"
             "mkpart primary ext4 129MiB 100%"
+            "set 1 boot on"
         )
 
-        boot_dev=${install_disk}1
-        mount_boot=${install_disk}2
-        mount_root=${install_disk}3
+        boot_dev=${install_disk}
+        mount_boot=${install_disk}1
+        mount_root=${install_disk}2
     fi
 
     for opt in "${_parts[@]}"; do
@@ -70,7 +76,7 @@ setup_lvm() {
     vgcreate vg0 ${mount_root}
 
     # Create root and home logical volumes
-    lvcreate -L 40G -n root vg0
+    lvcreate -L 4G -n root vg0
     lvcreate -l +100%FREE -n home vg0
 
     mount_root=/dev/mapper/vg0-root
@@ -80,6 +86,8 @@ setup_partition_scheme() {
 
     mkfs.ext4 ${mount_root}
     mount ${mount_root} ${build_dir}
+
+    # TODO: Create swap file here
 
     mkdir -p ${build_dir}/boot
     mkfs.ext2 ${mount_boot}
