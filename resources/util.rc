@@ -37,6 +37,17 @@ _run_once() {
     fi
 }
 
+# Run a specified hook from the current installation
+# profile.
+# $1: hook name (without .hook)
+_run_profile_hook() {
+    local _hook=${profile_dir}/${1}.hook
+    if [[ -f ${_hook} ]]; then
+        _msg_info "**** [HOOK][${1}]"
+        exec ${_hook}
+    fi
+}
+
 # Install pacman packages to our build directory.
 # $*: Packages to be installed
 _pacman() {

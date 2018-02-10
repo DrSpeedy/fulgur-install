@@ -1,6 +1,6 @@
 linux-lts
 intel-ucode
-xf86-video-intel
+xf86-input-libinput
 reflector
 xorg-server
 xorg-xinit
@@ -11,6 +11,17 @@ pulseaudio
 pulseaudio-bluetooth
 pulseaudio-alsa
 alsa-utils
-nginx
 chromium
 kodi
+transmission-cli
+nginx
+smartmontools
+mariadb
+openvpn
+openssl
+udisks2
+upower
+unzip
+unrar
+p7zip
+

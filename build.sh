@@ -19,7 +19,7 @@ arch=$(uname -m)
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Directory where this script will do it's work
-work_dir=/tmp/work.$$
+work_dir=/tmp/work
 
 # Directory where the root system will be built
 build_dir=/mnt
@@ -62,10 +62,7 @@ initialize() {
     sed -r "s|^#?\\s*CacheDir.+|CacheDir = $(echo -n ${_cache_dirs[@]})|g" ${script_dir}/pacman.conf > ${pacman_conf}
 
     # Run pre-build profile hook if it exists
-    if [[ -f ${profile_dir}/hooks/pre-build.hook ]]; then
-        _msg_info "Running prebuild hook..."
-        exec ${profile_dir}/hooks/pre-build.hook
-    fi
+    _run_profile_hook "pre-install"
 }
 
 make_basefs() {
@@ -95,6 +92,10 @@ make_basefs() {
 
     _msg_info "Running base provisioning script..."
     _chroot_run "/root/base.sh"
+    rm ${build_dir}/root/base.sh
+
+    # mkbasefs.hook
+    _run_profile_hook "mkbasefs"
 }
 
 make_profile() {
@@ -117,16 +118,19 @@ make_profile() {
     else
         _msg_error "Profile ${profile} not found!" 3
     fi
+
+    # mkprofile.hook
+    _run_profile_hook "mkprofile"
 }
 
 make_grub_bootloader() {
     if [[ ${use_uefi} -eq 0 ]]; then
         _msg_info "Installing GRUB..."
 
+        grub-install --target=i386-pc --root-dir=${build_dir} ${install_disk}
+
         _rsync ${script_dir}/grub/grub.cfg ${build_dir}/etc/default/grub
         _chroot_run "grub-mkconfig -o /boot/grub/grub.cfg"
-
-        grub-install --target=i386-pc ${install_disk}
     fi
 }
 
@@ -136,3 +140,5 @@ _run_once configure_system
 _run_once make_basefs
 _run_once make_profile
 _run_once make_grub_bootloader
+
+_run_profile_hook "post-install"
