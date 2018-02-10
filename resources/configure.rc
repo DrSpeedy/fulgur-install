@@ -1,0 +1,148 @@
+# vim:filetype=sh
+
+menu_backtitle="Fulgur Linux"
+
+install_disk=
+
+use_uefi=0
+use_luks=0
+use_lvm=0
+
+boot_dev=
+mount_root=
+mount_boot=
+
+setup_partitions() {
+    local _parts=()
+    if [[ "${use_uefi}" -eq 1 ]]; then
+        _parts+=(
+            "mklabel gpt"
+            "mkpart esp fat32 1MiB 513MiB"
+            "mkpart primary ext2 513MiB 641MiB"
+            "mkpart primary ext4 641MiB"
+        )
+
+        boot_dev=${install_disk}1
+        mount_boot=${install_disk}2
+        mount_root=${install_disk}3
+    else
+        _parts+=(
+            "mklabel gpt"
+            "mkpart bios_grub 1MiB 2MiB"
+            "mkpart primary ext2 2MiB 129MiB"
+            "mkpart primary ext4 129MiB 100%"
+        )
+
+        boot_dev=${install_disk}1
+        mount_boot=${install_disk}2
+        mount_root=${install_disk}3
+    fi
+
+    for opt in "${_parts[@]}"; do
+        # Change to _msg_info from resources/utils.sh
+        _msg_info "${opt}"
+        parted --script ${install_disk} ${opt}
+    done
+
+    _msg_info "$(parted --script ${install_disk} 'print')"
+}
+
+setup_luks() {
+    _msg_info "Setting up LUKS encryption layer on ${mount_root}"
+
+    use_luks=1
+
+    cryptsetup -c aes-xts-plain64 -y --use-random luksFormat ${mount_root}
+    cryptsetup luksOpen ${mount_root} cryptroot
+
+    mount_root=/dev/mapper/cryptroot
+}
+
+setup_lvm() {
+    _msg_info "Setting up LVM layer on ${mount_root}"
+
+    use_lvm=1
+
+    # Create the physical volume for lvm
+    pvcreate ${mount_root}
+
+    # Create a volume group
+    vgcreate vg0 ${mount_root}
+
+    # Create root and home logical volumes
+    lvcreate -L 40G -n root vg0
+    lvcreate -l +100%FREE -n home vg0
+
+    mount_root=/dev/mapper/vg0-root
+}
+
+setup_partition_scheme() {
+
+    mkfs.ext4 ${mount_root}
+    mount ${mount_root} ${build_dir}
+
+    mkdir -p ${build_dir}/boot
+    mkfs.ext2 ${mount_boot}
+    mount ${mount_boot} ${build_dir}/boot
+
+    if [[ ${use_uefi} -eq 1 ]]; then
+        mkdir -p ${build_dir}/boot/EFI
+        mkfs.vfat -F32 ${boot_dev}
+        mount ${boot_dev} ${build_dir}/boot/EFI
+    fi
+
+    if [[ ${use_lvm} -eq 1 ]]; then
+        mkdir -p ${build_dir}/home
+        mkfs.ext4 /dev/mapper/vg0-home
+        mount /dev/mapper/vg0-home ${build_dir}/home
+    fi
+}
+
+__select_disk() {
+    local _devices=($(lsblk -d | awk '{print "/dev/" $1}' | grep "sd\|hd\|vd\|nvme\|mmcblk"))
+    
+    local _options=()
+    local _count=0
+    
+    for device in ${_devices[@]}; do
+        _options+=(${_count} ${device})
+        let _count=$_count+1
+    done
+    
+    local _option=$(dialog --clear --backtitle "${menu_backtitle}" \
+        --title "Installation Configuration" \
+        --menu "Select disk for installation" 20 75 8 \
+        "${_options[@]}" \
+        3>&2 2>&1 1>&3)
+
+    if [[ $? -eq 0 ]]; then
+        install_disk="${_devices[${_option}]}"
+    fi
+
+}
+
+__select_partition_scheme() {
+
+    local _option=$(dialog --clear --backtitle "${backtitle}" \
+        --title "Installation Configuration" \
+        --menu "Select a partition scheme" 20 75 8 \
+        0 "LVM (Recommended)" \
+        1 "LVM + LUKS Encryption" \
+        3>&2 2>&1 1>&3)
+
+    if [[ $? -eq 0 ]]; then
+        case "${_option}" in
+            0)
+                setup_partitions
+                setup_lvm
+                ;;
+            1)
+                setup_partitions
+                setup_luks
+                setup_lvm
+                ;;
+        esac
+
+        setup_partition_scheme
+    fi
+}

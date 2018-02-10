@@ -1,0 +1,16 @@
+linux-lts
+intel-ucode
+xf86-video-intel
+reflector
+xorg-server
+xorg-xinit
+xorg-xauth
+bluez
+bluez-utils
+pulseaudio
+pulseaudio-bluetooth
+pulseaudio-alsa
+alsa-utils
+nginx
+chromium
+kodi
