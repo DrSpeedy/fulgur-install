@@ -1,0 +1,62 @@
+#!/bin/sh
+# vim:filetype=sh
+
+# Author: Brian Wilson <doc@wiltech.org>
+# Project: Fulgur Linux
+# Profile: set-top-box
+#
+#
+
+# TODO: Move to mkbasefs.hook
+make_express_partition_scheme() {
+    _msg_info "[MKPART][EXPRESS] Building partition scheme..."
+    
+    local _parts=()
+    if [[ ${uses_efi} -eq 1 ]]; then
+        _parts=( 'mklabel gpt'
+            'mkpart esp fat32 1MiB 513MiB'
+            'mkpart primary ext2 513MiB 641MiB'
+            'mkpart primary ext4 641MiB 100%'
+            'set 1 boot on'
+        )
+    else
+        _parts=( 'mklabel msdos'
+            'mkpart primary ext2 1MiB 129MiB'
+            'mkpart primary ext4 129MiB 100%'
+            'set 1 boot on'
+        )
+    fi
+    # TODO: variables for mounting
+    for opt in "${_parts[@]}"; do
+        _msg_info "[MKPART][EXPRESS] Parted: ${opt}"
+        parted --script ${install_device} ${opt}
+    done
+}
+
+select_partition_scheme
+
+if [[ "${partition_scheme}" == "Express" ]]; then
+    make_express_partition_scheme
+    
+    if [[ ${uses_efi} -eq 1 ]]; then
+        mkfs.vfat -F32 ${install_device}1
+        mkfs.ext2 ${loop_device}p2
+        mkfs.ext4 ${loop_device}p3
+
+        mount ${loop_device}p3
+        mkdir -p ${build_dir}/boot/EFI
+        mount ${loop_device}p2 ${build_dir}/boot
+        mount ${loop_device}p1 ${build_dir}/boot/EFI
+
+    else
+        mkfs.ext2 ${loop_device}p1
+        mkfs.ext4 ${loop_device}p2
+
+        mount ${loop_device}p2 ${build_dir}
+        mkdir -p ${build_dir}/boot
+        mount ${loop_device}p1 ${build_dir}/boot
+    fi
+else
+    _msg_info "[HOOK][MKBASEFS] Manual partitioning mode..."
+    eval ${SHELL}
+fi

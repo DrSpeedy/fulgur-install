@@ -1,0 +1,230 @@
+#!/bin/sh
+# TODO: A whole lot. Commiting for safe keeping
+# Author: Brian Wilson <doc@wiltech.org>
+# Project: Fulgur Linux
+#
+
+# Error codes:
+#   1) Bad permissions
+#   2) Unable to stat/read file or device
+#   3) Other
+
+# Operations:
+#   - Args:
+#       + --profile|p
+#           * Select profile to install on new medium
+#       + --type|t
+#           * Type of meium to install new system to
+
+##### Variables #####
+# Get architechure this script is running on
+arch=$(uname -m)
+
+# Build type: install|vdmk|raw
+build_type="raw"
+
+# Path to the directory this script is running
+# from. This value should always be the base directory of
+# the project.
+script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+##### Build variables #####
+
+# Profile to be installed
+profile=
+
+# Directory where profiles are stored
+profile_dir=${script_dir}/profiles
+
+# Directory where resource scripts are stored
+resource_dir=${script_dir}/resources
+
+# Directory where build data is stored
+work_dir=/tmp/flgr
+
+# Directory where system is built (usually a mount point)
+build_dir=/mnt/flgr
+
+# Pacman config used to build bootstrap system
+pacman_conf=${work_dir}/pacman.conf
+
+# Install as EFI system or not
+uses_efi=0
+
+# Install on top of LVM
+uses_lvm=0
+
+# Encrypt with LUKS
+uses_luks=0
+
+# What device to install the bootloader to
+install_device=/dev/null
+
+# What type of partitioning to do on the install device
+partition_scheme="Express"
+
+# Clean up after install
+clean_after=0
+
+# Log file
+log_file=/tmp/fulgur.log.$$
+
+##### Resources #####
+source ${resource_dir}/utils.rc
+source ${resource_dir}/dialog.rc
+
+display_config() {
+    _msg_info "########### CONFIG VARS ##########"
+    while read line; do
+        _msg_info "${line}"
+    done < "${work_dir}/config"
+    _msg_info "########### CONFIG VARS ##########"
+}
+
+init_config() {
+    _msg_info "[INIT] Initializing config file..."
+
+    set_config_variable "arch" "${arch}"
+    set_config_variable "build_type" "${build_type}"
+    set_config_variable "script_dir" "${script_dir}"
+    set_config_variable "resource_dir" "${resource_dir}"
+    set_config_variable "profile_dir" "${profile_dir}"
+    set_config_variable "work_dir" "${work_dir}"
+    set_config_variable "build_dir" "${build_dir}"
+    set_config_variable "pacman_conf" "${pacman_conf}"
+    set_config_variable "uses_efi" "${uses_efi}"
+    set_config_variable "uses_lvm" "${uses_lvm}"
+    set_config_variable "uses_luks" "${uses_luks}"
+    set_config_variable "profile" "${profile}"
+    set_config_variable "install_device" "${install_device}"
+    set_config_variable "partition_scheme" "${partition_scheme}"
+    set_config_variable "clean_after" "${clean_after}"
+    set_config_variable "log_file" "${log_file}"
+}
+
+init_device() {
+    _msg_info "[INIT] Initializing device..."
+    local _loop_dev=
+    if [[ ${build_type} == "raw" ]]; then
+        local _dev_size="10G"
+        local _img_name=${work_dir}/fulgur-$(date +'%Y-%m-%d').img
+        _msg_info "[INIT] Truncating ${_dev_size} for ${build_type} build"
+        truncate --size ${_dev_size} ${_img_name}
+        
+        # TODO: trap loop cleanup
+        let _loop_dev=$(losetup --find --show ${_img_name})
+        set_config_variable "loop_device" "${_loop_dev}"
+    fi
+
+    if [[ ${build_type} == "install" ]]; then
+        select_install_device
+        let _loop_dev=$(losetup --find --show ${install_device})
+    fi
+    set_config_variable "install_device" "${_loop_dev}"
+    partprobe ${_loop_dev}
+    _msg_info "[INIT] ${install_device} now looped to ${_loop_dev}"
+
+    trap run_cleanup INT TERM EXIT
+}
+
+initialize() {
+    # Make sure work directory exists
+    mkdir -p ${work_dir}
+    mkdir -p ${build_dir}
+
+    _msg_info "[INIT] Initializing build script..."
+
+    local _base_pcm_config=${script_dir}/pacman.conf
+    # If pacman.conf exists within the profile directory,
+    # we'll use that one instead of the base config
+    if [[ -f ${profile_dir}/pacman.conf ]]; then
+        let _base_pcm_config=${profile_dir}/pacman.conf
+    fi
+
+    # Initialize pacman config
+    local _cache_dirs
+    _msg_info "[INIT] Using ${_base_pcm_config} as base pacman configuration!"
+    _cache_dirs=($(pacman -v 2>&1 | grep '^Cache Dirs:' | sed 's/Cache Dirs:\s*//g'))
+    sed -r "s|^#?\\s*CacheDir.+|CacheDir = $(echo -n ${_cache_dirs[@]})|g" ${_base_pcm_config} > ${pacman_conf}
+
+    # Check if we booted using EFI
+    local efi_stat="/sys/firmware/efi/vars"
+    stat ${efi_stat} > /dev/null
+    if [[ $? -eq 0 ]]; then
+        _msg_info "[INIT] EFI boot detected!"
+        set_config_variable "uses_efi" "1"
+    fi
+
+    if [[ ! ${profile} ]]; then
+        _msg_info "[INIT] No profile selected!"
+        select_profile
+    fi
+
+    init_config
+    init_device
+
+    exec_hook "post-init"
+}
+
+make_basefs() {
+    _msg_info "[MKBASEFS] Building base filesystem..."
+
+    local _pkgs=(base base-devel zsh git)
+    local _adtl_pkgs=$(grep -v -h ^# ${script_dir}/pkglist.{any,${arch}})
+    exec_pacman ${_pkgs[@]} ${_adtl_pkgs[@]}
+
+    _msg_info "[MKBASEFS] Syncing base airootfs..."
+    exec_rsync ${script_dir}/airootfs/* ${build_dir}
+
+    _msg_info "[MKBASEFS] Running base provisioning script..."
+    exec_chroot "/root/base.sh"
+    rm -f ${build_dir}/root/base.sh
+
+    exec_hook "mkbasefs"
+}
+
+make_profile() {
+    _msg_info "[MKPROFILE] Building ${profile} profile..."
+
+    local _pkgs=$(grep -v -h ^# ${profile_dir}/${profile}/pkglist.{any,${arch}})
+    exec_pacman ${_pkgs[@]}
+
+    _msg_info "[MKPROFILE] Syncing ${profile} airootfs..."
+    exec_rsync ${profile_dir}/${profile}/airootfs/* ${build_dir}
+    exec_rsync ${profile_dir}/${profile}/${profile}.sh ${build_dir}/root
+
+    _msg_info "[MKPROFILE] Running ${profile} provisioning script..."
+    exec_chroot "/root/${profile}.sh"
+    rm -f ${build_dir}/root/${profile}.sh
+
+    exec_hook "mkprofile"
+}
+
+make_bootloader() {
+    _msg_info "[MKBOOT] Building bootloader..."
+    exec_hook "mkboot"
+}
+
+run_cleanup() {
+    _msg_info "[CLEANUP] Running clean up hook..."
+    sync
+
+    umount -R ${build_dir}
+    losetup -d ${loop_device}
+
+    if [[ ${clean_after} -eq 1 ]]; then
+        _msg_info "[CLEANUP] Cleaning work and build directories..."
+        rmdir ${build_dir}
+        rm -rf ${work_dir}
+    fi
+}
+
+# This script MUST be ran as root. No exceptions.
+if [[ ${EUID} -ne 0 ]]; then
+    _msg_error "This script must be run as root! (exit 1)" 1
+fi
+
+initialize
+make_basefs
+make_profile
+make_bootloader

@@ -1,0 +1,20 @@
+#!/bin/sh
+# vim:filetype=sh
+
+# Author: Brian Wilson <doc@wiltech.org>
+# Project: Fulgur Linux
+# Profile: set-top-box
+#
+#
+
+if [[ -f ${profile_dir}/${profile}/airootfs/etc/hostname ]]; then
+    let _hostname=$(cat ${profile_dir}/${profile}/airootfs/etc/hostname)
+fi
+
+select_hostname
+echo ${hostname} > ${build_dir}/etc/hostname
+
+select_timezone
+ln -sf /usr/share/zoneinfo/${timezone} /etc/localtime
+
+

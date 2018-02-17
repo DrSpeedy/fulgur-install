@@ -1,0 +1,113 @@
+# vim:filetype=sh
+
+# Author: Brian Wilson <doc@wiltech.org>
+# Project: Fulgur
+#
+# Utility resources for the main build script.
+##### Utilities ######
+
+# Display an info message
+# $1: Message to be displayed
+_msg_info() {
+    local _msg="${1}"
+    echo -e "[FULGUR] INFO: ${_msg}" | tee -a ${log_file}
+}
+
+# Display an error message and exit with status
+# $1: Message to be displayed
+# $2: Exit code (exit=0 will not exit)
+_msg_error() {
+    local _msg="${1}"
+    local _error="${2}"
+
+    echo >> ${log_file}
+    echo -e "[FULGUR] ERROR: ${_msg}" | tee -a ${log_file}
+    echo >> ${log_file}
+
+    if [[ ${_error} -ne 0 ]]; then
+        exit ${_error}
+    fi
+}
+
+exec_chroot() {
+    _msg_info "[CHROOT][${build_dir}] Exec: ${1}"
+    local _result=$(eval arch-chroot ${build_dir} ${1} 2>&1 | tee -a ${log_file})
+}
+
+# Execute profile build hook
+# $1: hook to execute
+exec_hook() {
+    if [[ -f ${profile_dir}/${profile}/hooks/${1}.hook ]]; then
+        local _hook=${profile}-${1}-$$.hook
+        _msg_info "[HOOK] Executing: ${_hook}"
+        
+        echo "#!/bin/sh" > ${work_dir}/${_hook}
+        echo "source ${work_dir}/config" >> ${work_dir}/${_hook}
+        echo "source ${resource_dir}/utils.rc" >> ${work_dir}/${_hook}
+        echo "source ${resource_dir}/dialog.rc" >> ${work_dir}/${_hook}
+        cat ${profile_dir}/${profile}/hooks/${1}.hook >> ${work_dir}/${_hook}
+        chmod 755 ${work_dir}/${_hook}
+        eval ${work_dir}/${_hook} 2>&1 | tee -a ${log_file}
+    fi
+}
+
+# Rsync wrapper with progress bar
+# $*: additional arguments
+exec_rsync() {
+    _msg_info "[RSYNC] ${*}"
+    rsync --force -arh --partial --info=progress2 ${*}
+}
+
+# Pacman wrapper
+# $*: packages to install
+exec_pacman() {
+    _msg_info "[PACMAN][${pacman_conf}][${build_dir}]"
+    pacstrap -C "${pacman_conf}" -c -d -G -M "${build_dir}" ${*} 2>&1 | tee -a ${log_file}
+}
+
+load_config_variables() {
+    # TODO: Implement...
+    _msg_info "[CONFIG] Loading variables from TODO: this stuff"
+}
+
+get_config_variable() {
+    _msg_info "[CONFIG] Getting ${1}"
+    if [[ ! -f ${work_dir}/config ]]; then
+        local _value=$(grep -v -h ^# ${1} | awk -F '=' '{print $2}')
+        _msg_info "[CONFIG] GET: ${1}=${_value}"
+    fi
+}
+
+# Write configuration variables to a file under
+# {work_dir}/config. This is so we can access them from
+# our profile hooks.
+# TODO: Add support for commented values...
+# $1: Variable name
+# $2: Variable data (Include quotes if data is string)
+set_config_variable() {
+    _msg_info "[CONFIG] Setting ${1} to ${2}"
+    
+    # Check if we've been properly initialized
+    if [[ ! -d ${work_dir} ]]; then
+        _msg_error "[CONFIG] ${work_dir} does not exist!" 2
+    fi
+    
+    # Check if config file exists, if not create
+    # a blank one
+    if [[ ! -f ${work_dir}/config ]]; then
+        _msg_info "[CONFIG] ${work_dir}"
+        touch ${work_dir}/config
+    fi
+
+    # Escape slashes
+    local _value="${2//\//\\/}"
+
+    # If variable already exists in config file,
+    # find and replace. Else append new string to file
+    if [[ $(grep ${1} ${work_dir}/config) ]]; then
+        sed -i "s/^\(${1}\s*=\s*\).*\$/\1${_value}/" ${work_dir}/config
+    else
+        echo "${1}=${2}" >> ${work_dir}/config
+    fi
+    export ${1}=${2}
+}

@@ -1,0 +1,17 @@
+profile=set-top-box
+arch=x86_64
+build_type=install
+script_dir=/home/doc/FulgurOS/fulgur
+profile_dir=/home/doc/FulgurOS/fulgur/profiles
+work_dir=/tmp/flgr
+build_dir=/mnt/flgr
+pacman_conf=/tmp/flgr/pacman.conf
+uses_efi=0
+uses_lvm=0
+uses_luks=0
+install_device=/dev/sda
+partition_scheme=Manual
+clean_after=0
+log_file=/tmp/flgr/log
+hostname=SDADSSADSA
+timezone=America/Blanc-Sablon

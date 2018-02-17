@@ -6,3 +6,14 @@
 # Profile: set-top-box
 #
 #
+
+_msg_info "[HOOK][MKBASEFS] Installing grub..."
+exec_pacman "grub os-prober"
+
+if [[ ${uses_efi} -eq 1 ]]; then
+    _msg_info "[HOOK][MKBASEFS] Installing EFI boot dependencies..."
+    exec_pacman "dosfstools efibootmgr"
+fi
+
+# TODO: Setup fstab
+genfstab -U -p >> ${build_dir}/etc/fstab

@@ -1,0 +1,60 @@
+# If you come from bash you might have to change your $
+export PATH=/usr/local/bin:$PATH
+
+# Java SDK path
+export JAVA_HOME=/usr/lib/jvm/java-openjdk
+# Path to your oh-my-zsh installation.
+export ZSH="/usr/share/oh-my-zsh/oh-my-zsh.zsh"
+# Default editor
+export EDITOR='nvim'
+# Compilation flags
+export ARCHFLAGS="-arch $(uname -m)"
+# SSH keys
+export SSH_KEY_PATH="$HOME/.ssh/rsa_id"
+
+# Set name of the theme to load. Optionally, if you set this to "random"
+# it'll load a random theme each time that oh-my-zsh is loaded.
+# See https://github.com/robbyrussell/oh-my-zsh/wiki/Themes
+ZSH_THEME="bolt"
+ZSH_CUSTOM="/etc/zsh/custom"
+
+# Syntax highlighting
+local _plugin_highlight="/usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+if [[ -f ${_plugin_highlight} ]]; then
+    source ${_plugin_highlight}
+fi
+
+# Oh-My-Zsh plugins
+plugins=(git zsh-256color zsh-autosuggestions)
+
+source $ZSH/oh-my-zsh.sh
+
+
+# Set personal aliases, overriding those provided by oh-my-zsh libs,
+# plugins, and themes. Aliases can be placed here, though oh-my-zsh
+# users are encouraged to define aliases within the ZSH_CUSTOM folder.
+# For a full list of active aliases, run `alias`.
+
+alias nv="$EDITOR"
+alias vi="$EDITOR"
+
+
+alias i3cs='egrep ^bind ${I3_CONFIG}/config | cut -d '\'' '\'' -f 2- \
+            | sed '\''s/ /\t/'\'' | column -ts $'\''\t'\'' | pr -2 -w 145 -t | less'
+
+# Web development
+alias art="php artisan"
+
+alias gulp="node node_modules/gulp/bin/gulp.js"
+
+function hms() {
+    pushd "$HOME/Homestead" > /dev/null
+    vagrant "${@:1}"
+    popd > /dev/null
+}
+
+alias cp="rsync -P"
+
+if [[ -f $HOME/.zshrc.local ]]; then
+    source $HOME/.zshrc.local
+fi

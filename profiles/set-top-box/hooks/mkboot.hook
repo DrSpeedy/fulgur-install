@@ -1,0 +1,28 @@
+#!/bin/sh
+# vim:filetype=sh
+
+# Author: Brian Wilson <doc@wiltech.org>
+# Project: Fulgur Linux
+# Profile: set-top-box
+#
+#
+
+if [[ ${uses_efi} -eq 1 ]]; then
+    _msg_info "[HOOK][MKBOOT] Installing grub in EFI mode!"
+    _msg_info "[HOOK][MKBOOT] Installing bootloader on ${install_disk}..."
+
+    grub-install --target=${arch}-efi --efi-directory=${boot_dev} --bootloader-id=${profile}
+else
+    _msg_info "[HOOK][MKBOOT] Installing grub in BIOS mode!"
+    _msg_info "[HOOK][MKBOOT] Installing bootloader on ${install_device}"
+
+    grub-install --target=i386-pc --root-dir=${build_dir} ${install_device}
+fi
+
+_msg_info "[HOOK][MKBOOT] Building grub config..."
+exec_rsync ${profile_dir}/${profile}/grub.cfg ${build_dir}/etc/default/grub
+
+#sed -i "s/^\(%ROOT_DEVICE%\s*=\s*\).*\$/\1${root_device}/" ${work_dir}/config
+sed -i "s/^\(%ROOT_DEVICE%\s*=\s*\).*\$/\1/" ${work_dir}/config
+
+exec_chroot "grub-mkconfig -o /boot/grub/grub.cfg"

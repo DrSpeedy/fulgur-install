@@ -1,0 +1,140 @@
+# vim:filetype=sh
+
+# Author: Brian Wilson <doc@wiltech.org>
+# Project: Fulgur
+#
+
+select_profile() {
+    _msg_info "[DIALOG] Select installation profile..."
+
+    # Create array of all available profiles
+    local _profiles=($(ls -1 ${script_dir}/profiles))
+    local _options=()
+    local _count=0
+
+    # Add number option infront of each profile (required by dialog)
+    for prof in ${_profiles[@]}; do
+        _options+=(${_count} ${prof})
+        let _count=$_count+1
+    done
+
+    local _option=$(dialog --clear --backtitle "${dialog_menu_backtitle}" \
+        --title "*** Configuration ***" \
+        --menu "You can use the UP/DOWN arrow keys, the first \n\
+                letter of the choice as a hot key, or the \n\
+                number keys 1-9 to choose an option.\n\
+                Choose the profile to install." 20 75 8 \
+        "${_options[@]}" 3>&2 2>&1 1>&3
+    )
+    
+    if [[ $? -eq 0 ]]; then
+        _msg_info "[DIALOG] Profile: ${_profiles[${_option}]} selected!"
+        set_config_variable "profile" "${_profiles[${_option}]}"
+    else
+        _msg_info "[DIALOG] Profile: Cancel pressed, returning to main menu..."
+        return fulgur_install_menu
+    fi
+}
+
+select_install_device() {
+    _msg_info "[DIALOG] Select device to install system to..."
+    local _devices=($(lsblk -d | awk '{print "/dev/" $1}' | grep "sd\|hd\|vd\|nvme\|mmcblk"))
+    
+    local _options=()
+    local _count=0
+    
+    for device in ${_devices[@]}; do
+        _options+=(${_count} ${device})
+        let _count=$_count+1
+    done
+    
+    local _option=$(dialog --clear --backtitle "${dialog_menu_backtitle}" \
+        --title "*** Installation Device ***" \
+        --menu "You can use the UP/DOWN arrow keys, the first \n\
+                letter of the choice as a hot key, or the \n\
+                number keys 1-9 to choose an option.\n\
+                Choose a device to install the system to." 20 75 8 \
+        "${_options[@]}" \
+        3>&2 2>&1 1>&3
+    )
+
+    if [[ $? -eq 0 ]]; then
+        _msg_info "[DIALOG] Installation device: ${_devices[${_option}]} selected!"
+        set_config_variable "install_device" "${_devices[${_option}]}"
+    else
+        _msg_info "[DIALOG] Installation device: Cancel pressed, returning to main menu..."
+        return fulgur_install_menu
+    fi
+
+}
+
+select_partition_scheme() {
+    _msg_info "[DIALOG] Select partition scheme to install..."
+    local _option=$(dialog --clear --backtitle "${dialog_menu_backtitle}" \
+        --title "*** Partitioning ***" \
+        --menu "You can use the UP/DOWN arrow keys, the first \n\
+                letter of the choice as a hot key, or the \n\
+                number keys 1-9 to choose an option.\n\
+                Choose a partitioning style for ${install_device}." 20 75 8 \
+        "Express" "Use express partition settings (Erases all data!)" \
+        "Manual" "Manually partition the device (cfdisk/cgdisk)" \
+        3>&2 2>&1 1>&3
+    )
+
+    if [[ $? -eq 0 ]]; then
+        _msg_info "[DIALOG] Partitioning: ${_option} setup selected!"
+        set_config_variable "partition_scheme" "${_option}"
+        
+        # TODO: Start partitioner
+    fi
+}
+
+# Select hostname for new system
+select_hostname() {
+    _msg_info "[DIALOG] Input hostname..."
+    local _hostname=$(dialog --clear --backtitle "${dialog_menu_backtitle}" \
+        --title "*** Hostname ***" \
+        --inputbox "Input: " 8 60 \
+        3>&2 2>&1 1>&3
+    )
+    
+    if [[ $? -eq 0 ]]; then
+        _msg_info "[DIALOG] Hostname: ${_hostname} selected!"
+        set_config_variable "hostname" "${_hostname}"
+    else
+        _msg_info "[DIALOG] Hostname: Cancel pressed, returning to main menu..."
+        return fulgur_install_menu
+    fi
+}
+
+select_timezone() {
+    _msg_info "[DIALOG] Select timezone..."
+
+    local _timezones=($(timedatectl list-timezones | awk '{print $1}'))
+
+    local _options=()
+    local _count=0
+
+    for device in ${_timezones[@]}; do
+        _options+=(${_count} ${device})
+        let _count=$_count+1
+    done
+
+    local _option=$(dialog --clear --backtitle "${dialog_menu_backtitle}" \
+        --title "*** Select disk for installation ***" \
+        --menu "You can use the UP/DOWN arrow keys, the first \n\
+                letter of the choice as a hot key, or the \n\
+                number keys 1-9 to choose an option.\n\
+                Choose the THEME" 20 75 8 \
+        "${_options[@]}" 3>&2 2>&1 1>&3
+    )
+
+    if [[ $? -eq 0 ]]; then
+        _msg_info "[DIALOG] Timezone: ${_timezones[${_option}]} selected!"
+        set_config_variable "timezone" "${_timezones[${_option}]}"
+    fi
+}
+
+select_locale() {
+    _msg_info "[DIALOG] Select locale..."
+}

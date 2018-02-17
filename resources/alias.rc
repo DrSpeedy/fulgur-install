@@ -1,8 +1,0 @@
-# vim:filetype=sh
-
-# Author: Brian Wilson <doc@wiltech.org>
-# Project: Fulgur
-#
-
-# Rsync wrapper
-alias _rsync="rsync --force -arh --partial --info=progress2"

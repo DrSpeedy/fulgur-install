@@ -1,0 +1,52 @@
+#!/bin/sh
+# vim:filetype=sh
+
+# Author: Brian Wilson <doc@wiltech.org>
+# Project: Fulgur Linux
+# Profile: workstation
+#
+#
+source "../../../resources/utils.rc"
+
+profile_name="FulgurWS"
+boot_dev=
+
+install_bootloader() {
+
+    if [[ $(stat ${boot_dev} > /dev/null) -ne 0 ]]; then
+        _msg_info "Device for bootloader installation not set! Falling back!"
+        exit 3 # temporary...
+
+        # TODO: implement dialog
+        # select_boot_device
+    fi
+
+    local efi_stat="/sys/firmware/efi/vars"
+    if [[ $(stat ${efi_stat} > /dev/null) -ne 0 ]]; then
+        # true
+        _msg_info "UEFI mode detected!"
+        _msg_info "Installing bootloader on ${boot_dev}"
+
+        grub-install --target=x86_64-efi --efi-directory=${boot_dev} --bootloader-id="${profile_name}"
+
+    else
+        #false (bios booting)
+        _msg_info "BIOS mode detected!"
+        _msg_info "Installing bootloader on ${boot_dev}"
+ 
+        grub-install --target=i386-pc --root-dir=${build_dir} ${install_disk}
+    fi
+    
+    _msg_info "Setting up bootloader config..."
+    _rsync ${profile_dir}/grub ${build_dir}/etc/grub.d
+    # Switch to rsync
+    mv ${build_dir}/etc/grub.d/grub.cfg ${build_dir}/etc/default/grub
+    _chroot_run "grub-mkconfig -o /boot/grub/grub.cfg"
+}
+
+if [[ ${EUID} -ne 0 ]]; then
+    _msg_error "This script must be run as root! (exit 3)" 3
+fi
+
+install_bootloader
+
