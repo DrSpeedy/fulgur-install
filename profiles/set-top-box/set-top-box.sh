@@ -26,7 +26,7 @@ systemctl enable NetworkManager.service
 systemctl enable bluetooth.service
 systemctl enable nginx.service
 systemctl enable sshd.service
-systemctl enable stb.service
+#systemctl enable stb.service
 systemctl enable mariadb.service
 
 # UFW

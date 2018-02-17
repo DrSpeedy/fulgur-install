@@ -7,14 +7,23 @@
 #
 #
 
+_msg_info "[HOOK][MKPROFILE]: Setting up hostname..."
 if [[ -f ${profile_dir}/${profile}/airootfs/etc/hostname ]]; then
-    let _hostname=$(cat ${profile_dir}/${profile}/airootfs/etc/hostname)
+    _hostname=$(cat ${profile_dir}/${profile}/airootfs/etc/hostname)
 fi
 
-select_hostname
+_hostname=$(display_text_input "Setup Hostname" "Hostname: " "${_hostname}")
+set_config_variable "hostname" "${_hostname}"
 echo ${hostname} > ${build_dir}/etc/hostname
 
 select_timezone
-ln -sf /usr/share/zoneinfo/${timezone} /etc/localtime
+exec_chroot "ln -sf /usr/share/zoneinfo/${timezone} /etc/localtime"
 
+_msg_info "[HOOK][MKPROFILE]: Creating new administrative user..." 
+_user=$(display_text_input "New User" "Username: ")
+_passwd=$(display_passwd_input "Set password for: ${_user}" "Password: ")
 
+# We don't want our password logged
+arch-chroot ${build_dir} "useradd -m -p ${_passwd} -G users,wheel,lp,audio -s /bin/zsh ${_user}"
+
+_msg_info "[HOOK][MKPROFILE]: New user ${_user}"

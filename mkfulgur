@@ -67,7 +67,7 @@ partition_scheme="Express"
 clean_after=0
 
 # Log file
-log_file=/tmp/fulgur.log.$$
+log_file=${script_dir}/install.log
 
 ##### Resources #####
 source ${resource_dir}/utils.rc
@@ -112,13 +112,13 @@ init_device() {
         truncate --size ${_dev_size} ${_img_name}
         
         # TODO: trap loop cleanup
-        let _loop_dev=$(losetup --find --show ${_img_name})
+        _loop_dev=$(losetup --find --show ${_img_name})
         set_config_variable "loop_device" "${_loop_dev}"
     fi
 
     if [[ ${build_type} == "install" ]]; then
         select_install_device
-        let _loop_dev=$(losetup --find --show ${install_device})
+        _loop_dev=$(losetup --find --show ${install_device})
     fi
     set_config_variable "install_device" "${_loop_dev}"
     partprobe ${_loop_dev}
@@ -228,3 +228,7 @@ initialize
 make_basefs
 make_profile
 make_bootloader
+
+exec_hook "post-install"
+
+

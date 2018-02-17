@@ -47,7 +47,7 @@ exec_hook() {
         echo "source ${resource_dir}/dialog.rc" >> ${work_dir}/${_hook}
         cat ${profile_dir}/${profile}/hooks/${1}.hook >> ${work_dir}/${_hook}
         chmod 755 ${work_dir}/${_hook}
-        eval ${work_dir}/${_hook} 2>&1 | tee -a ${log_file}
+        eval ${work_dir}/${_hook} | tee -a ${log_file}
     fi
 }
 
